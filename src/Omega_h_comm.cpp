@@ -222,10 +222,10 @@ bool Comm::reduce_and(bool x) const {
 }
 
 #ifdef OMEGA_H_USE_MPI
-static void mpi_add_int128(void* a, void* b, int*, MPI_Datatype*) {
+static void mpi_add_int128(void* a, void* b, int* len, MPI_Datatype*) {
   Int128* a2 = static_cast<Int128*>(a);
   Int128* b2 = static_cast<Int128*>(b);
-  *b2 = *b2 + *a2;
+  for (int i = 0; i < *len; ++i) b2[i] = b2[i] + a2[i];
 }
 #endif
 
@@ -234,7 +234,12 @@ Int128 Comm::add_int128(Int128 x) const {
   MPI_Op op;
   int commute = true;
   CALL(MPI_Op_create(mpi_add_int128, commute, &op));
-  CALL(MPI_Allreduce(MPI_IN_PLACE, &x, sizeof(Int128), MPI_PACKED, op, impl_));
+  // Int128 must be a single MPI element so that MPI never splits it across op calls
+  MPI_Datatype type;
+  CALL(MPI_Type_contiguous(sizeof(Int128), MPI_BYTE, &type));
+  CALL(MPI_Type_commit(&type));
+  CALL(MPI_Allreduce(MPI_IN_PLACE, &x, 1, type, op, impl_));
+  CALL(MPI_Type_free(&type));
   CALL(MPI_Op_free(&op));
 #endif
   return x;
