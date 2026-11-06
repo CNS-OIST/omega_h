@@ -7,6 +7,7 @@
 #include <Omega_h_owners.hpp>
 #include <Omega_h_vtk.hpp>
 
+#include <cmath>
 #include <sstream>
 
 using namespace Omega_h;
@@ -406,6 +407,18 @@ void test_rib(CommPtr comm) {
   OMEGA_H_CHECK(masses == Reals(n, 1));
 }
 
+static void test_add_int128(CommPtr comm) {
+  auto size = comm->size();
+  // largest Int128 divided by the smallest power of two >= size: its bytes are almost all 0xFF,
+  // so that the sum carries across all bytes
+  auto const shift = int(std::ceil(std::log2(size)));
+  auto const max = Int128(INT64_MAX, UINT64_MAX);
+  auto const value = shift ? max >> shift : max;
+  Int128 expected(0);
+  for (I32 r = 0; r < size; ++r) expected = expected + value;
+  OMEGA_H_CHECK(comm->add_int128(value) == expected);
+}
+
 int main(int argc, char** argv) {
   auto lib = Library(&argc, &argv);
   auto world = lib.world();
@@ -424,5 +437,6 @@ int main(int argc, char** argv) {
     }
   }
   world->barrier();
+  test_add_int128(world);
   test_rib(world);
 }

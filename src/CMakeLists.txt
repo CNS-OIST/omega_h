@@ -324,6 +324,15 @@ if(BUILD_TESTING)
   set(TEST_EXES ${TEST_EXES} mpi_tests)
   if(Omega_h_USE_MPI)
     test_func(run_mpi_tests 4 ./mpi_tests)
+    # Force Open MPI allreduce algorithms that split the reduction buffer across ranks
+    # (4: ring, 6: Rabenseifner); these variables are ignored by other MPI implementations
+    foreach(alg 4 6)
+      test_func(run_mpi_tests_allreduce_alg${alg} 4 ./mpi_tests)
+      if(TEST run_mpi_tests_allreduce_alg${alg})
+        set_tests_properties(run_mpi_tests_allreduce_alg${alg} PROPERTIES ENVIRONMENT
+          "OMPI_MCA_coll_tuned_use_dynamic_rules=1;OMPI_MCA_coll_tuned_allreduce_algorithm=${alg}")
+      endif()
+    endforeach()
   else()
     test_func(run_mpi_tests 1 ./mpi_tests)
   endif()
